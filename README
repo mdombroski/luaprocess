@@ -1,0 +1,18 @@
+This Lua library lets you easily rename your Lua programs in top and ps output.
+
+To try this Lua library, edit Makefile to reflect your installation of Lua and
+run make. This will build procname.so and run a simple test. If everything is
+ok, install procname.so in some official place.
+
+Files in this package:
+  procname.c      procname library
+  test.lua        test code
+
+Usage:
+> require "procname"
+> print( procname.get() )
+lua
+> procname.set( "new name" )
+> print( procname.get()
+new name
+>
