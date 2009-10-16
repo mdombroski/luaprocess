@@ -12,58 +12,38 @@ LUA=		lua
 INSTALL=	install
 
 # no need to change anything below here
-PACKAGE=	luaprocname
-LIBVERSION=	4
-VERSION=	$(LUAVERSION).$(LIBVERSION)
-
-SRCS=		procname.c test.lua
-EXTRADIST=	Makefile README ChangeLog
-
 WARN=		-pedantic -Wall
 INCS=		-I$(LUAINC)
 CPPFLAGS=	-fPIC $(INCS) $(WARN)
 
 MYNAME=		procname
 MYLIB= 		$(MYNAME)
-
 OBJS=		$(MYLIB).o
-
-T= 		$(MYLIB).so
+TARGET= 	$(MYLIB).so
 
 OS=$(shell uname)
 ifeq ($(OS),Darwin)
   LDFLAGS_SHARED=-bundle -undefined dynamic_lookup
-  LIBS=
 else
   LDFLAGS_SHARED=-shared
-  LIBS=
 endif
 
-# targets
-phony += all
-all:	$T
 
-phony += test
-test:	all
-	$(LUA) test.lua
+all: $(TARGET)
 
-$T:	$(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $(LDFLAGS_SHARED) $(OBJS) $(LIBS)
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(LDFLAGS_SHARED) $(OBJS)
 
 $(OBJS):
 
-phony += clean
 clean:
-	rm -f $(OBJS) $T core core.* a.out
+	rm -f $(OBJS) $(TARGET)
 
-phony += install
-install: $T
-	$(INSTALL) -D $T $(DESTDIR)/$(LUALIB)/$T
-	
-phony += show-funcs
-show-funcs:
-	@echo "$(MYNAME) library:"
-	@fgrep '/**' l$(MYLIB).c | cut -f2 -d/ | tr -d '*' | sort
+install: $(TARGET)
+	$(INSTALL) -D $(TARGET) $(DESTDIR)/$(LUALIB)/$(TARGET)
 
-.PHONY: $(phony)
-# eof
+test: all
+	$(LUA) test.lua
+
+.PHONY: all clean install test
+
