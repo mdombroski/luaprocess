@@ -1,4 +1,4 @@
-# makefile for procname library for Lua
+# makefile for process library for Lua
 
 # change these to reflect your Lua installation
 PREFIX=		/usr/local
@@ -16,7 +16,7 @@ WARN=		-pedantic -Wall
 INCS=		-I$(LUAINC)
 CPPFLAGS=	-fPIC $(INCS) $(WARN)
 
-MYNAME=		procname
+MYNAME=		process
 MYLIB= 		$(MYNAME)
 OBJS=		$(MYLIB).o
 TARGET= 	$(MYLIB).so
