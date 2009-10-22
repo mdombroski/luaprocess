@@ -12,9 +12,10 @@
 #include <malloc.h>
 
 # if defined(__linux__)
-# include <sys/prctl.h>
-# include <sys/wait.h>
-# include <errno.h>
+#   include <sys/prctl.h>
+#   include <sys/wait.h>
+#   include <errno.h>
+#   include <fcntl.h>
 # endif
 
 # if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
@@ -43,23 +44,56 @@ extern "C"
 #endif
 
 
+int Pgetpid( lua_State* L )
+{
+# if defined(__linux__)
+	lua_pushnumber( L, getpid() );
+# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+	lua_pushnumber( L, GetCurrentProcessId() );
+# endif
+
+	return 1;
+}
+
+
 int Pgetname( lua_State* L )
 {
 # if defined(__linux__)
-	char name[17] = {0};
-	if( prctl( PR_GET_NAME, name ) < 0 )
+	int fd = 0;
+	char buf[256] = {0};
+	void *ptr = 0;
+	pid_t pid = luaL_optinteger( L, 1, getpid() );
+
+	snprintf( buf, sizeof(buf), "/proc/%d/status", pid );
+
+	fd = open( buf, O_RDONLY );
+	if( fd < 0 )
 	{
-		luaL_error( L, PNAME ".getname: %s", strerror( errno ) );
+		luaL_argerror( L, 1, "Invalid process ID" );
 	}
 
-	lua_pushstring( L, name );
+	lseek( fd, strlen( "Name:\t" ), SEEK_SET );
+	read( fd, buf, 256 );
+	close( fd );
+
+	ptr = memchr( buf, '\n', sizeof(buf) );
+	if( ptr )
+	{
+		memset( ptr, 0x00, sizeof(buf)- ( (size_t)ptr - (size_t)buf ) );
+	}
+
+	lua_pushstring( L, buf );
+
 # elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
-	TCHAR szProcessName[MAX_PATH] = TEXT("<unknown>");
-
-	DWORD pid = GetCurrentProcessId();
+	TCHAR szProcessName[MAX_PATH] = {0};
+	DWORD pid = luaL_optinteger( L, 1, GetCurrentProcessId() );
+	
 	HANDLE hProcess = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid );
-
-	if( hProcess != NULL )
+	if( hProcess == NULL )
+	{
+		luaL_error( L, "Invalid process ID" );
+	}
+	else
 	{
 		HMODULE hMod;
 		DWORD cbNeeded;
@@ -68,11 +102,12 @@ int Pgetname( lua_State* L )
 		{
 			GetModuleBaseName( hProcess, hMod, szProcessName, sizeof(szProcessName)/sizeof(TCHAR) );
 		}
+	
+		CloseHandle( hProcess );
 	}
 
-	CloseHandle( hProcess );
-
 	lua_pushstring( L, szProcessName );
+
 # else
 	return luaL_error( L, PNAME ".getname is not supported on this platform" );
 # endif
@@ -159,6 +194,7 @@ int Pwait( lua_State* L )
 
 static const luaL_reg R[] =
 {
+	{ "getpid",		Pgetpid },
 	{ "getname",	Pgetname },
 	{ "setname",	Psetname },
 	{ "exec",		Pexec },

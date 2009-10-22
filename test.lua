@@ -1,25 +1,29 @@
 require "process"
 
 name = arg[0]
+pid = process.getpid()
 
-print( "<<< process name: \""..process.getname().."\"" )
+print( "get pid: "..pid )
+print( "get pname: \""..process.getname().."\"" )
 process.setname( name )
-print( ">>> process name: \""..name.."\"" )
-print( "<<< process name: \""..process.getname().."\"" )
+print( "set pname: \""..name.."\"" )
+print( "get pname: \""..process.getname().."\"" )
+
+print( "get pname (pid): \""..process.getname(pid).."\"" )
 
 pid = process.fork()
 if pid == 0 then
-	print( ">>> child: forked" )
-	print( ">>> child: exit" )
+	print( "child: forked" )
+	print( "child: exit" )
 	os.exit( 0 )
 end
 
-print( ">>> parent: fork child pid is "..pid )
-print( ">>> parent: wait for child" )
+print( "parent: fork child pid is "..pid..", name is: \""..process.getname(pid).."\"" )
+print( "parent: wait for child" )
 
 process.wait( pid )
 
-print( ">>> parent: child ended" )
+print( "parent: child ended" )
 
-process.exec( "echo", "exec(\"echo\") looks like it worked ok" )
+process.exec( "echo", "exec(\"echo\") -- works ok" )
 
