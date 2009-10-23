@@ -8,7 +8,6 @@
 */
 
 #include <string.h>
-#include <unistd.h>
 #include <malloc.h>
 #include <errno.h>
 
@@ -16,6 +15,7 @@
 #   include <sys/prctl.h>
 #   include <sys/wait.h>
 #   include <fcntl.h>
+#   include <unistd.h>
 # endif
 
 # if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
@@ -25,6 +25,7 @@
 #   include <process.h>
 #   define LUA_BUILD_AS_DLL
 #   define LUA_LIB
+typedef DWORD pid_t;
 # endif
 
 #define PNAME		"process"
@@ -40,6 +41,8 @@ extern "C"
 #include <lualib.h>
 #include <lauxlib.h>
 
+LUALIB_API int luaopen_process (lua_State *L);
+
 #if defined(__cplusplus)
 }
 #endif
@@ -49,7 +52,7 @@ int Pgetpid( lua_State* L )
 {
 # if defined(__linux__)
 	lua_pushnumber( L, getpid() );
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+# elif defined(WIN32)
 	lua_pushnumber( L, GetCurrentProcessId() );
 # endif
 
@@ -85,7 +88,7 @@ int Pgetname( lua_State* L )
 
 	lua_pushstring( L, buf );
 
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+# elif defined(WIN32)
 	TCHAR szProcessName[MAX_PATH] = {0};
 	DWORD pid = luaL_optinteger( L, 1, GetCurrentProcessId() );
 	
@@ -143,7 +146,7 @@ char** helper_argv( lua_State* L, int istart, int argc )
 		luaL_checkstring( L, i + istart );
 	}
 
-	argv = calloc( argc + 1, sizeof(char*) );
+	argv = (char**) calloc( argc + 1, sizeof(char*) );
 
 	for( i = 0; i < argc; ++i )
 	{
@@ -157,13 +160,13 @@ char** helper_argv( lua_State* L, int istart, int argc )
 
 int Pexec( lua_State* L )
 {
-	int pid = 0;
+	pid_t pid = 0;
 	int err = 0;
 	char** argv = NULL;
 	int arg_start = 1;
 	int arg_count = lua_gettop( L );
 	
-# if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+# if defined(WIN32)
 	int mode = _P_OVERLAY;
 # endif
 	
@@ -174,7 +177,7 @@ int Pexec( lua_State* L )
 		arg_count--;
 # if defined(__linux__)
 		pid = fork();
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+# elif defined(WIN32)
 		mode = _P_NOWAIT;
 # endif
 	}
@@ -185,7 +188,7 @@ int Pexec( lua_State* L )
 		argv = helper_argv( L, arg_start, arg_count );
 # if defined(__linux__)
 		err = execvp( argv[0], argv );
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+# elif defined(WIN32)
 		_spawnvp( mode, argv[0], argv );
 # endif
 		free( argv );
@@ -205,7 +208,8 @@ int Pexec( lua_State* L )
 
 int Pfork( lua_State* L )
 {
-	pid_t pid = fork();
+# if defined(__linux__)
+	int pid = fork();
 	
 	if( pid < 0 )
 	{
@@ -215,6 +219,9 @@ int Pfork( lua_State* L )
 	lua_pushnumber( L, pid );
 
 	return 1;
+# else
+	return 0;
+# endif
 }
 
 
@@ -224,10 +231,17 @@ int Pwait( lua_State* L )
 	pid_t pid = luaL_optinteger( L, 1, -1 );
 	int status = 0;
 
+# if defined(__linux__)
 	if( waitpid( pid, &status, 0 ) < 0 )
 	{
 		return luaL_error( L, PNAME ".wait: %s", strerror( errno ) );
 	}
+# elif defined(WIN32)
+	if( _cwait( &status, pid, 0) < 0 )
+	{
+		return luaL_error( L, PNAME ".wait: %s", strerror( errno ) );
+	}
+# endif
 
 	lua_pushnumber( L, status );
 
@@ -241,12 +255,13 @@ static const luaL_reg R[] =
 	{ "getname",	Pgetname },
 	{ "exec",		Pexec },
 	{ "wait",		Pwait },
-# if !defined(WIN32) && !defined(_WIN32) && !defined(__WIN32__)
+# if !defined(WIN32)
 	{ "setname",	Psetname },
 	{ "fork",		Pfork },
 # endif
 	{ NULL,			NULL }
 };
+
 
 LUALIB_API int luaopen_process (lua_State *L)
 {
