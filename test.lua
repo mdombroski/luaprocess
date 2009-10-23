@@ -1,29 +1,43 @@
 require "process"
 
-name = arg[0]
-pid = process.getpid()
-
-print( "get pid: "..pid )
-print( "get pname: \""..process.getname().."\"" )
-process.setname( name )
-print( "set pname: \""..name.."\"" )
-print( "get pname: \""..process.getname().."\"" )
-
-print( "get pname (pid): \""..process.getname(pid).."\"" )
-
-pid = process.fork()
-if pid == 0 then
-	print( "child: forked" )
-	print( "child: exit" )
-	os.exit( 0 )
+function test( msg, fn )
+	local b,s = pcall( fn )
+	if b then
+		print( msg.." --- pass" )
+	else
+		print( msg.." --- fail" )
+	end
 end
 
-print( "parent: fork child pid is "..pid..", name is: \""..process.getname(pid).."\"" )
-print( "parent: wait for child" )
+name = arg[0]
+pid = 0
 
-process.wait( pid )
+test( "Get PID", function() pid = process.getpid() end )
 
-print( "parent: child ended" )
+test( "Set name", function() process.setname( name ) end )
+test( "Get name", function() process.getname() end )
+test( "Get name (pid)", function() process.getname(pid) end )
 
-process.exec( "echo", "exec(\"echo\") -- works ok" )
+test( "fork", function() pid = process.fork(); if pid == 0 then os.exit(0) end end )
+test( "wait", function() process.wait( pid ) end )
+
+if not pcall( function()
+	if process.fork() == 0 then
+		local s,msg = pcall( function() process.exec( "/bin/echo", "-e", "exec --- pass" ) end )
+		print( "exec --- fail ("..tostring(msg)..")" )
+		os.exit(0)
+	end
+end ) then
+	print( "exec requires fork" )
+end
+
+if not pcall( function()
+	if process.fork() == 0 then
+		local s,msg = pcall( function() process.execp( "echo", "-e", "execp --- pass" ) end )
+		print( "execp --- fail ("..tostring(msg)..")" )
+		os.exit(0)
+	end
+end ) then
+	print( "execp requires fork" )
+end
 

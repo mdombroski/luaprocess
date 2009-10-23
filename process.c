@@ -10,11 +10,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <errno.h>
 
 # if defined(__linux__)
 #   include <sys/prctl.h>
 #   include <sys/wait.h>
-#   include <errno.h>
 #   include <fcntl.h>
 # endif
 
@@ -22,6 +22,7 @@
 #   include <Windows.h>
 #   include <tchar.h>
 #   include <psapi.h>
+#   include <process.h>
 #   define LUA_BUILD_AS_DLL
 #   define LUA_LIB
 # endif
@@ -132,29 +133,71 @@ int Psetname( lua_State* L )
 }
 
 
-int Pexec( lua_State* L )
+char** helper_argv( lua_State* L, int istart, int argc )
 {
 	int i = 0;
-	char** args;
+	char** argv;
 
-	/* Check all arguments are strings */
-	for( i = 0; i < lua_gettop( L ); ++i )
+	for( i = 0; i < argc; ++i )
 	{
-		luaL_checkstring( L, i+1 );
+		luaL_checkstring( L, i + istart );
 	}
 
-	/* There needs to be at least 2 arguments */
-	args = calloc( lua_gettop( L ) + 1, sizeof(char*) );
+	argv = calloc( argc + 1, sizeof(char*) );
+
+	for( i = 0; i < argc; ++i )
+	{
+		argv[i] = (char*) lua_tostring( L, i + istart );
+	}
 	
-	/* The last argument is NULL */
-	args[ lua_gettop( L ) ] = NULL;
+	argv[argc] = 0x00;
+	return argv;
+}
 
-	for( i = 0; i < lua_gettop( L ); ++i )
+
+int Pexec( lua_State* L )
+{
+	int err = 0;
+	char** argv = helper_argv( L, 1, lua_gettop( L ) );
+
+# if defined(__linux__)
+	err = execv( argv[0], argv );
+# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+	err = _execv( argv[0], argv );
+# endif
+
+	free( argv );
+
+	if( err < 0 )
 	{
-		args[i] = (char*)lua_tostring( L, i+1 );
+		luaL_argerror( L, 1, strerror( errno ) );
 	}
 
-	execvp( args[0], args );
+	luaL_error( L, PNAME ".exec failed" );
+
+	return 0;
+}
+
+
+int Pexecp( lua_State* L )
+{
+	int err = 0;
+	char** argv = helper_argv( L, 1, lua_gettop( L ) );
+
+# if defined(__linux__)
+	err = execvp( argv[0], argv );
+# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+	err = _execv( argv[0], argv );
+# endif
+
+	free( argv );
+
+	if( err < 0 )
+	{
+		luaL_argerror( L, 1, strerror( errno ) );
+	}
+	
+	luaL_error( L, PNAME ".execp failed" );
 
 	return 0;
 }
@@ -198,6 +241,7 @@ static const luaL_reg R[] =
 	{ "getname",	Pgetname },
 	{ "setname",	Psetname },
 	{ "exec",		Pexec },
+	{ "execp",		Pexecp },
 	{ "fork",		Pfork },
 	{ "wait",		Pwait },
 	{ NULL,			NULL }
