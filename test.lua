@@ -28,16 +28,8 @@ if not pcall( function()
 		os.exit(0)
 	end
 end ) then
-	print( "exec requires fork" )
+	print( "exec test requires fork" )
 end
 
-if not pcall( function()
-	if process.fork() == 0 then
-		local s,msg = pcall( function() process.execp( "echo", "-e", "execp --- pass" ) end )
-		print( "execp --- fail ("..tostring(msg)..")" )
-		os.exit(0)
-	end
-end ) then
-	print( "execp requires fork" )
-end
+test( "exec (spawn)", function() process.exec( false, "true" ) end )
 

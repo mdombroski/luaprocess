@@ -157,49 +157,49 @@ char** helper_argv( lua_State* L, int istart, int argc )
 
 int Pexec( lua_State* L )
 {
+	int pid = 0;
 	int err = 0;
-	char** argv = helper_argv( L, 1, lua_gettop( L ) );
-
-# if defined(__linux__)
-	err = execv( argv[0], argv );
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
-	err = _execv( argv[0], argv );
-# endif
-
-	free( argv );
-
-	if( err < 0 )
-	{
-		luaL_argerror( L, 1, strerror( errno ) );
-	}
-
-	luaL_error( L, PNAME ".exec failed" );
-
-	return 0;
-}
-
-
-int Pexecp( lua_State* L )
-{
-	int err = 0;
-	char** argv = helper_argv( L, 1, lua_gettop( L ) );
-
-# if defined(__linux__)
-	err = execvp( argv[0], argv );
-# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
-	err = _execv( argv[0], argv );
-# endif
-
-	free( argv );
-
-	if( err < 0 )
-	{
-		luaL_argerror( L, 1, strerror( errno ) );
-	}
+	char** argv = NULL;
+	int arg_start = 1;
+	int arg_count = lua_gettop( L );
 	
-	luaL_error( L, PNAME ".execp failed" );
+# if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+	int mode = _P_OVERLAY;
+# endif
+	
+	/* replace mode - first arg is false/nil */
+	if( ! lua_toboolean( L, 1 ) )
+	{
+		arg_start = 2;
+		arg_count--;
+# if defined(__linux__)
+		pid = fork();
+# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+		mode = _P_NOWAIT;
+# endif
+	}
 
-	return 0;
+	/* Only exec if pid == 0 (process is child or the mode was replace) */
+	if( pid == 0 )
+	{
+		argv = helper_argv( L, arg_start, arg_count );
+# if defined(__linux__)
+		err = execvp( argv[0], argv );
+# elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
+		_spawnvp( mode, argv[0], argv );
+# endif
+		free( argv );
+	}
+
+	/* return a pid object */
+	lua_pushnumber( L, pid );
+
+	if( err < 0 )
+	{
+		luaL_error( L, PNAME ".exec: %s", strerror( errno ) );
+	}
+
+	return 1;
 }
 
 
@@ -239,11 +239,12 @@ static const luaL_reg R[] =
 {
 	{ "getpid",		Pgetpid },
 	{ "getname",	Pgetname },
-	{ "setname",	Psetname },
 	{ "exec",		Pexec },
-	{ "execp",		Pexecp },
-	{ "fork",		Pfork },
 	{ "wait",		Pwait },
+# if !defined(WIN32) && !defined(_WIN32) && !defined(__WIN32__)
+	{ "setname",	Psetname },
+	{ "fork",		Pfork },
+# endif
 	{ NULL,			NULL }
 };
 
